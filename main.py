@@ -4,73 +4,71 @@ from discord.ext import commands
 from discord import app_commands
 from keep_alive import keep_alive
 
-# 환경 변수에서 토큰 읽기
 TOKEN = os.getenv("DISCORD_TOKEN")
 
-# 디스코드 인텐트 설정
 intents = discord.Intents.default()
 intents.message_content = True
 
-# 봇 및 명령어 트리 초기화
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
 
-# 봇 준비 완료 시 호출되는 이벤트
 @bot.event
 async def on_ready():
-    print(f"✅ {bot.user} 로 로그인됨.")
+    print(f"✅ 로그인됨: {bot.user}")
     try:
         synced = await tree.sync()
-        print(f"🌐 {len(synced)}개의 명령어가 동기화됨.")
+        print(f"📡 동기화된 명령어: {len(synced)}개")
     except Exception as e:
         print(f"❌ 명령어 동기화 실패: {e}")
 
 
-# 슬래시 명령어: /분배
 @tree.command(name="분배", description="분배 버튼을 생성합니다.")
-@app_commands.describe(분배명="예: 성수, 헤일로 등", 닉네임="쉼표(,)로 구분된 이름들 (예: 철수,영희,민수)")
+@app_commands.describe(분배명="분배 제목", 닉네임="띄어쓰기로 구분된 이름들 (예: 철수 영희 민수)")
 async def 분배(interaction: discord.Interaction, 분배명: str, 닉네임: str):
-    user_list = [name.strip() for name in 닉네임.split(",") if name.strip()]
+    nicknames = [n.strip() for n in 닉네임.split() if n.strip()]
 
     class DistributionView(discord.ui.View):
         def __init__(self, users):
-            super().__init__(timeout=300)  # 5분 타임아웃
+            super().__init__(timeout=None)
+            self.users = users
+            self.clicked = set()
+            self.message = None  # 나중에 메시지 저장
+
             for user in users:
                 self.add_item(self.DistributionButton(user))
 
         class DistributionButton(discord.ui.Button):
             def __init__(self, user):
-                super().__init__(label=user, style=discord.ButtonStyle.primary, custom_id=f"btn_{user}")
+                super().__init__(label=user, style=discord.ButtonStyle.primary)
 
             async def callback(self, interaction: discord.Interaction):
                 if self.disabled:
-                    await interaction.response.send_message("⚠ 이미 클릭된 버튼입니다.", ephemeral=True)
+                    await interaction.response.send_message("이미 선택된 항목입니다.", ephemeral=True)
                     return
 
                 self.disabled = True
-                self.label += " ✔"
-                self.style = discord.ButtonStyle.secondary
+                self.label = f"✅ {self.label}"
+                self.style = discord.ButtonStyle.success
+                self.view.clicked.add(self.label)
 
-                try:
-                    await interaction.response.edit_message(view=self.view)
-                except discord.NotFound:
-                    return  # 메시지가 삭제되었거나 유효하지 않은 상호작용
+                await interaction.response.edit_message(view=self.view)
 
-                if all(item.disabled for item in self.view.children):
-                    await interaction.followup.send("✅ **분배 완료**", ephemeral=False)
+                # 모든 버튼이 클릭되었을 때 설명 변경
+                if all(button.disabled for button in self.view.children):
+                    embed = self.view.message.embeds[0]
+                    embed.description = "분배 완료! 👍"
+                    await self.view.message.edit(embed=embed, view=self.view)
 
     embed = discord.Embed(
-        title=f"💸 {분배명} 분배",
-        description="버튼을 눌러 분배금을 수령하세요!",
-        color=0x00ff99
+        title=f"💸 {분배명}",
+        description=f"버튼을 눌러 수령하세요.",
+        color=0x00ff99,
     )
 
-    await interaction.response.send_message(embed=embed, view=DistributionView(user_list))
+    view = DistributionView(nicknames)
+    await interaction.response.send_message(embed=embed, view=view)
+    view.message = await interaction.original_response()
 
-
-# 웹 서버 실행 (24시간 유지)
 keep_alive()
-
-# 디스코드 봇 실행
 bot.run(TOKEN)
