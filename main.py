@@ -4,18 +4,19 @@ from discord.ext import commands
 from discord import app_commands
 from keep_alive import keep_alive
 
+# 환경 변수에서 토큰 읽기
 TOKEN = os.getenv("DISCORD_TOKEN")
 
-# Intents 설정
+# 디스코드 인텐트 설정
 intents = discord.Intents.default()
 intents.message_content = True
 
-# Bot 및 Tree 초기화
+# 봇 및 명령어 트리 초기화
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
 
-# 봇 실행 시 동기화
+# 봇 준비 완료 시 호출되는 이벤트
 @bot.event
 async def on_ready():
     print(f"✅ {bot.user} 로 로그인됨.")
@@ -26,7 +27,7 @@ async def on_ready():
         print(f"❌ 명령어 동기화 실패: {e}")
 
 
-# /분배 명령어 정의
+# 슬래시 명령어: /분배
 @tree.command(name="분배", description="분배 버튼을 생성합니다.")
 @app_commands.describe(분배명="예: 성수, 헤일로 등", 닉네임="쉼표(,)로 구분된 이름들 (예: 철수,영희,민수)")
 async def 분배(interaction: discord.Interaction, 분배명: str, 닉네임: str):
@@ -54,7 +55,7 @@ async def 분배(interaction: discord.Interaction, 분배명: str, 닉네임: st
                 try:
                     await interaction.response.edit_message(view=self.view)
                 except discord.NotFound:
-                    return  # 메시지가 삭제되었거나 응답 타이밍 문제
+                    return  # 메시지가 삭제되었거나 유효하지 않은 상호작용
 
                 if all(item.disabled for item in self.view.children):
                     await interaction.followup.send("✅ **분배 완료**", ephemeral=False)
@@ -68,8 +69,8 @@ async def 분배(interaction: discord.Interaction, 분배명: str, 닉네임: st
     await interaction.response.send_message(embed=embed, view=DistributionView(user_list))
 
 
-# 웹서버 유지용 함수 실행
+# 웹 서버 실행 (24시간 유지)
 keep_alive()
 
-# 봇 실행
+# 디스코드 봇 실행
 bot.run(TOKEN)
