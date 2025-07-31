@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+from keep_alive import keep_alive
 import os
 
 intents = discord.Intents.default()
@@ -145,4 +146,11 @@ async def on_ready():
     await tree.sync()
     print(f"✅ 봇 실행됨: {bot.user}")
 
-bot.run(os.getenv("DISCORD_TOKEN"))
+# UptimeRobot을 위한 웹서버 유지
+keep_alive()
+
+# 디스코드 토큰 실행
+TOKEN = os.getenv("DISCORD_TOKEN")
+if not TOKEN:
+    raise ValueError("❌ DISCORD_TOKEN 환경변수가 설정되지 않았습니다.")
+bot.run(TOKEN)
