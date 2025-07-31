@@ -3,6 +3,11 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from keep_alive import keep_alive
+keep_alive()
+
+# 아래는 봇 실행
+import discord
+# ... your bot setup and client.run(TOKEN)
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 
