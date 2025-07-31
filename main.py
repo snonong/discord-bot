@@ -1,79 +1,75 @@
-import os
 import discord
 from discord.ext import commands
-from discord import app_commands
+from discord import app_commands, Interaction, Embed, ButtonStyle
+from discord.ui import View, Button
+import os
 from keep_alive import keep_alive
-keep_alive()
 
-# 아래는 봇 실행
-import discord
-# ... your bot setup and client.run(TOKEN)
+intents = discord.Intents.default()
+bot = commands.Bot(command_prefix="/", intents=intents)
+tree = bot.tree
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 
-intents = discord.Intents.default()
-intents.message_content = True
+class DistributeView(View):
+    def __init__(self, user_list, original_embed, original_interaction, title):
+        super().__init__(timeout=None)
+        self.clicked = set()
+        self.total = set(user_list)
+        self.original_embed = original_embed
+        self.original_interaction = original_interaction
+        self.title = title
 
-bot = commands.Bot(command_prefix="!", intents=intents)
-tree = bot.tree
+        for user in user_list:
+            self.add_item(DistributeButton(label=user, parent=self))
 
+    async def update_embed(self):
+        if self.clicked == self.total:
+            embed = discord.Embed(
+                title=f"💰 {self.title}",
+                description=f"분배 완료! 👍",
+                color=discord.Color.green()
+            )
+        else:
+            description = f"{' '.join(self.total)} 님에게 분배금 받아 가세요 😍"
+            embed = discord.Embed(
+                title=f"💰 {self.title} 분배 시작!",
+                description=description,
+                color=discord.Color.gold()
+            )
 
-@bot.event
-async def on_ready():
-    print(f"✅ 로그인됨: {bot.user}")
-    try:
-        synced = await tree.sync()
-        print(f"📡 동기화된 명령어: {len(synced)}개")
-    except Exception as e:
-        print(f"❌ 명령어 동기화 실패: {e}")
+        await self.original_interaction.edit_original_response(embed=embed, view=self)
 
+class DistributeButton(Button):
+    def __init__(self, label, parent):
+        super().__init__(label=label, style=ButtonStyle.success)
+        self.parent = parent
+        self.clicked = False
 
-@tree.command(name="분배", description="분배 버튼을 생성합니다.")
-@app_commands.describe(분배명="분배 제목", 닉네임="띄어쓰기로 구분된 이름들 (예: 철수 영희 민수)")
-async def 분배(interaction: discord.Interaction, 분배명: str, 닉네임: str):
-    nicknames = [n.strip() for n in 닉네임.split() if n.strip()]
+    async def callback(self, interaction: Interaction):
+        if self.clicked:
+            await interaction.response.send_message("이미 수령하셨습니다!", ephemeral=True)
+            return
+        self.clicked = True
+        self.label = f"✅ {self.label}"
+        self.disabled = True
+        self.parent.clicked.add(self.label.replace("✅ ", ""))
+        await self.parent.update_embed()
+        await interaction.response.edit_message(view=self.parent)
 
-    class DistributionView(discord.ui.View):
-        def __init__(self, users):
-            super().__init__(timeout=None)
-            self.users = users
-            self.clicked = set()
-            self.message = None  # 나중에 메시지 저장
-
-            for user in users:
-                self.add_item(self.DistributionButton(user))
-
-        class DistributionButton(discord.ui.Button):
-            def __init__(self, user):
-                super().__init__(label=user, style=discord.ButtonStyle.primary)
-
-            async def callback(self, interaction: discord.Interaction):
-                if self.disabled:
-                    await interaction.response.send_message("이미 선택된 항목입니다.", ephemeral=True)
-                    return
-
-                self.disabled = True
-                self.label = f"✅ {self.label}"
-                self.style = discord.ButtonStyle.success
-                self.view.clicked.add(self.label)
-
-                await interaction.response.edit_message(view=self.view)
-
-                # 모든 버튼이 클릭되었을 때 설명 변경
-                if all(button.disabled for button in self.view.children):
-                    embed = self.view.message.embeds[0]
-                    embed.description = "분배 완료! 👍"
-                    await self.view.message.edit(embed=embed, view=self.view)
+@tree.command(name="분배", description="유물 분배용 버튼 생성")
+@app_commands.describe(닉네임들="띄어쓰기로 구분된 닉네임들을 입력하세요", 제목="분배 제목을 입력하세요")
+async def 분배(interaction: Interaction, 닉네임들: str, 제목: str):
+    user_list = 닉네임들.split()
 
     embed = discord.Embed(
-        title=f"💸 {분배명}",
-        description=f"{' '.join(self.total)} 님에게 분배금 받아 가세요 😍",
-        color=0x00ff99,
+        title=f"💰 {제목} 분배 시작!",
+        description=f"{' '.join(user_list)} 님에게 분배금 받아 가세요 😍",
+        color=discord.Color.gold()
     )
 
-    view = DistributionView(nicknames)
+    view = DistributeView(user_list, embed, interaction, 제목)
     await interaction.response.send_message(embed=embed, view=view)
-    view.message = await interaction.original_response()
 
 keep_alive()
 bot.run(TOKEN)
