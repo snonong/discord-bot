@@ -67,7 +67,7 @@ async def 분배(interaction: discord.Interaction, 분배명: str, 닉네임: st
 
     embed = discord.Embed(
         title=f"💸 {분배명}",
-        description=f"버튼을 눌러 수령하세요.",
+        description=f"{' '.join(self.total)} 님에게 분배금 받아 가세요 😍",
         color=0x00ff99,
     )
 
